@@ -70,10 +70,12 @@ func AddHosts(dir string) *proxy {
 	}
 
 	for _, f := range files {
-		host := handler.AddProjectProxy(appsDir, f.Name())
+		if f.IsDir() {
+			host := handler.AddProjectProxy(appsDir, f.Name())
 
-		// Add the custom domain to /etc/hosts
-		hosts.AddHost("127.0.0.1", host)
+			// Add the custom domain to /etc/hosts
+			hosts.AddHost("127.0.0.1", host)
+		}
 	}
 
 	// Save /etc/hosts
