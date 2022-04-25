@@ -11,6 +11,43 @@ import (
 	"github.com/txn2/txeh"
 )
 
+func GetProjectPort(packagePath string) string {
+	// `yarn dev` port regex
+	r, _ := regexp.Compile("next dev --port ([\\d]+)")
+
+	// Open our package.json
+	packageJson, err := ioutil.ReadFile(packagePath)
+
+	// if we os.Open returns an error then handle it
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	// Find the port
+	match := r.FindStringSubmatch(string(packageJson))
+	port := "3000"
+
+	if len(match) > 0 {
+		port = match[len(match)-1]
+	}
+
+	return port
+}
+
+func (handler *proxy) AddProjectProxy(appsDir string, dirName string) string {
+	port := GetProjectPort(fmt.Sprintf("%s/%s/package.json", appsDir, dirName))
+	host := fmt.Sprintf("%s.z", dirName)
+	proxiedHost := fmt.Sprintf("http://localhost:%s", port)
+	reverseProxy, err := NewProxy(proxiedHost)
+	if err != nil {
+		panic(err)
+	}
+	handler.proxies[host] = reverseProxy
+
+	fmt.Println(fmt.Sprintf("-> Proxying http://%s", host))
+	return host
+}
+
 func AddHosts(dir string) *proxy {
 	hosts, err := txeh.NewHostsDefault()
 	if err != nil {
@@ -32,39 +69,11 @@ func AddHosts(dir string) *proxy {
 		proxies: map[string]*httputil.ReverseProxy{},
 	}
 
-	// Nextjs dev port regex
-	r, _ := regexp.Compile("next dev --port ([\\d]+)")
-
 	for _, f := range files {
-		packagePath := fmt.Sprintf("%s/%s/package.json", appsDir, f.Name())
-
-		// Open our package.json
-		packageJson, err := ioutil.ReadFile(packagePath)
-		// if we os.Open returns an error then handle it
-		if err != nil {
-			fmt.Println(err)
-		}
-
-		// Find the port
-		match := r.FindStringSubmatch(string(packageJson))
-		port := "3000"
-
-		if len(match) > 0 {
-			port = match[len(match)-1]
-		}
-
-		host := fmt.Sprintf("%s.z", f.Name())
-		proxiedHost := fmt.Sprintf("http://localhost:%s", port)
-		reverseProxy, err := NewProxy(proxiedHost)
-		if err != nil {
-			panic(err)
-		}
-		handler.proxies[host] = reverseProxy
+		host := handler.AddProjectProxy(appsDir, f.Name())
 
 		// Add the custom domain to /etc/hosts
 		hosts.AddHost("127.0.0.1", host)
-
-		fmt.Println(fmt.Sprintf("-> Proxying http://%s", host))
 	}
 
 	// Save /etc/hosts
