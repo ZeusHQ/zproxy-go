@@ -30,7 +30,7 @@ func GetProjectPort(packageJson PackageJson) string {
 	}
 
 	// `yarn dev` port regex
-	r, _ := regexp.Compile("--port ([\\d]+)")
+	r, _ := regexp.Compile("-{1,2}po?r?t?\\s+(\\d+)")
 
 	// Find the port
 	match := r.FindStringSubmatch(packageJson.Scripts.Dev)
