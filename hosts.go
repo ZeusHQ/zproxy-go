@@ -7,24 +7,36 @@ import (
 	"net/http/httputil"
 	"os/exec"
 	"regexp"
+	"strconv"
 
 	"github.com/txn2/txeh"
 )
 
-func GetProjectPort(packagePath string) string {
+func GetProjectName(packageJson PackageJson, dirName string) string {
+	if packageJson.ZProxy.Name != nil {
+		return *packageJson.ZProxy.Name
+	}
+	return dirName
+}
+
+func GetProjectPort(packageJson PackageJson) string {
+	if packageJson.ZProxy.Port != nil {
+		return strconv.Itoa(*packageJson.ZProxy.Port)
+	}
+
 	// `yarn dev` port regex
 	r, _ := regexp.Compile("--port ([\\d]+)")
 
-	// Open our package.json
-	packageJson, err := ioutil.ReadFile(packagePath)
+	// // Open our package.json
+	// packageJson, err := ioutil.ReadFile(packagePath)
 
-	// if we os.Open returns an error then handle it
-	if err != nil {
-		fmt.Println(err)
-	}
+	// // if we os.Open returns an error then handle it
+	// if err != nil {
+	// 	fmt.Println(err)
+	// }
 
 	// Find the port
-	match := r.FindStringSubmatch(string(packageJson))
+	match := r.FindStringSubmatch(packageJson.Scripts.Dev)
 	port := "3000"
 
 	if len(match) > 0 {
@@ -35,8 +47,13 @@ func GetProjectPort(packagePath string) string {
 }
 
 func (handler *proxy) AddProjectProxy(appsDir string, dirName string) string {
-	port := GetProjectPort(fmt.Sprintf("%s/%s/package.json", appsDir, dirName))
-	host := fmt.Sprintf("%s.z", dirName)
+	packageJsonPath := fmt.Sprintf("%s/%s/package.json", appsDir, dirName)
+	packageJson := LoadPackageJson(packageJsonPath)
+
+	name := GetProjectName(packageJson, dirName)
+	port := GetProjectPort(packageJson)
+	host := fmt.Sprintf("%s.z", name)
+
 	proxiedHost := fmt.Sprintf("http://localhost:%s", port)
 	reverseProxy, err := NewProxy(proxiedHost)
 	if err != nil {
@@ -44,7 +61,7 @@ func (handler *proxy) AddProjectProxy(appsDir string, dirName string) string {
 	}
 	handler.proxies[host] = reverseProxy
 
-	fmt.Println(fmt.Sprintf("-> Proxying http://%s", host))
+	fmt.Println(fmt.Sprintf("-> Proxying http://%s to %s", host, proxiedHost))
 	return host
 }
 
@@ -82,6 +99,20 @@ func AddHosts(dir string) *proxy {
 	hosts.Save()
 
 	return handler
+}
+
+func RemoveHosts(handler *proxy) {
+	hosts, err := txeh.NewHostsDefault()
+	if err != nil {
+		panic(err)
+	}
+
+	for host := range handler.proxies {
+		hosts.RemoveHost(host)
+		// exec.Command("open", fmt.Sprintf("http://%s", host)).Start()
+	}
+
+	hosts.Save()
 }
 
 func OpenHosts(handler *proxy) {
