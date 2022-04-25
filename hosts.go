@@ -13,7 +13,7 @@ import (
 
 func GetProjectPort(packagePath string) string {
 	// `yarn dev` port regex
-	r, _ := regexp.Compile("next dev --port ([\\d]+)")
+	r, _ := regexp.Compile("--port ([\\d]+)")
 
 	// Open our package.json
 	packageJson, err := ioutil.ReadFile(packagePath)
