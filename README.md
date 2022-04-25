@@ -1,6 +1,8 @@
 # zproxy
 
-zproxy is a zero-configuration Golang ReverseProxy for Turborepos that automagically proxies all http and websocket requests from local domains to their respective localhost:port url.
+zproxy is a zero-configuration local development proxy for Turborepos that automagically proxies all http and websocket requests from local domains to their respective localhost:port url.
+
+For example, 
 
 ## Installation
 ```
