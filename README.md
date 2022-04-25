@@ -23,3 +23,14 @@ zproxy will add web.z and docs.z to your /etc/hosts file and proxy requests from
 
 ## Wildcards
 
+
+## Build from source
+`git clone git@github.com:ZeusHQ/zproxy-go.git`
+`cd zproxy-go`
+`go build`
+`go install`
+
+## Running source
+`git clone git@github.com:ZeusHQ/zproxy-go.git`
+`cd zproxy-go`
+`sudo go run . --dir PATH_TO_TURBOREPO`
