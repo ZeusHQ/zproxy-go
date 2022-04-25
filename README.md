@@ -2,12 +2,20 @@
 
 zproxy is a zero-configuration Golang ReverseProxy for Turborepos that automagically proxies all http and websocket requests from local domains to their respective localhost:port url.
 
+## Installation
+```
+brew tap zeushq/tap
+brew install zproxy
+```
+
 ## Usage
 
 Once installed, go to the root of your turborepo and run "sudo zproxy" to start the proxy server. 
 
-`cd ~/dev/my-mono-repo/`
-`sudo zproxy`
+```
+cd ~/dev/my-mono-repo/
+sudo zproxy
+```
 
 Sudo is required for /etc/hosts management and running the server on port 80.
 
