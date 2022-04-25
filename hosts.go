@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http/httputil"
 	"os/exec"
+	"path/filepath"
 	"regexp"
 	"strconv"
 
@@ -15,6 +16,10 @@ import (
 func GetProjectName(packageJson PackageJson, dirName string) string {
 	if packageJson.ZProxy.Name != nil {
 		return *packageJson.ZProxy.Name
+	}
+
+	if dirName == "web" {
+		return "www"
 	}
 	return dirName
 }
@@ -38,27 +43,27 @@ func GetProjectPort(packageJson PackageJson) string {
 	return port
 }
 
-func GetProjectHosts(packageJson PackageJson, name string) []string {
+func GetProjectHosts(packageJson PackageJson, name string, monorepoName string) []string {
 	var hosts []string
 
-	hosts = append(hosts, fmt.Sprintf("%s.z", name))
+	hosts = append(hosts, fmt.Sprintf("%s.%s.z", name, monorepoName))
 
 	if packageJson.ZProxy.Subdomains != nil {
 		for _, subdomain := range *packageJson.ZProxy.Subdomains {
-			hosts = append(hosts, fmt.Sprintf("%s.%s.z", subdomain, name))
+			hosts = append(hosts, fmt.Sprintf("%s.%s.z", subdomain, monorepoName))
 		}
 	}
 
 	return hosts
 }
 
-func (handler *proxy) AddProjectProxy(appsDir string, dirName string) []string {
+func (handler *proxy) AddProjectProxy(monorepoName string, appsDir string, dirName string) []string {
 	packageJsonPath := fmt.Sprintf("%s/%s/package.json", appsDir, dirName)
 	packageJson := LoadPackageJson(packageJsonPath)
 
 	name := GetProjectName(packageJson, dirName)
 	port := GetProjectPort(packageJson)
-	projectHosts := GetProjectHosts(packageJson, name)
+	projectHosts := GetProjectHosts(packageJson, name, monorepoName)
 	// host := fmt.Sprintf("%s.z", name)
 
 	proxiedHost := fmt.Sprintf("http://localhost:%s", port)
@@ -81,8 +86,10 @@ func AddHosts(dir string) *proxy {
 		panic(err)
 	}
 
+	monorepoName := filepath.Base(dir)
+
 	// Add Zeus Host
-	hosts.AddHost("127.0.0.1", "dev.z")
+	// hosts.AddHost("127.0.0.1", "dev.z")
 
 	appsDir := fmt.Sprintf("%s/apps", dir)
 
@@ -98,7 +105,7 @@ func AddHosts(dir string) *proxy {
 
 	for _, f := range files {
 		if f.IsDir() {
-			projectHosts := handler.AddProjectProxy(appsDir, f.Name())
+			projectHosts := handler.AddProjectProxy(monorepoName, appsDir, f.Name())
 
 			for _, host := range projectHosts {
 				// Add the custom domain to /etc/hosts
