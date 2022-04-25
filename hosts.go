@@ -27,14 +27,6 @@ func GetProjectPort(packageJson PackageJson) string {
 	// `yarn dev` port regex
 	r, _ := regexp.Compile("--port ([\\d]+)")
 
-	// // Open our package.json
-	// packageJson, err := ioutil.ReadFile(packagePath)
-
-	// // if we os.Open returns an error then handle it
-	// if err != nil {
-	// 	fmt.Println(err)
-	// }
-
 	// Find the port
 	match := r.FindStringSubmatch(packageJson.Scripts.Dev)
 	port := "3000"
@@ -46,23 +38,41 @@ func GetProjectPort(packageJson PackageJson) string {
 	return port
 }
 
-func (handler *proxy) AddProjectProxy(appsDir string, dirName string) string {
+func GetProjectHosts(packageJson PackageJson, name string) []string {
+	var hosts []string
+
+	hosts = append(hosts, fmt.Sprintf("%s.z", name))
+
+	if packageJson.ZProxy.Subdomains != nil {
+		for _, subdomain := range *packageJson.ZProxy.Subdomains {
+			hosts = append(hosts, fmt.Sprintf("%s.%s.z", subdomain, name))
+		}
+	}
+
+	return hosts
+}
+
+func (handler *proxy) AddProjectProxy(appsDir string, dirName string) []string {
 	packageJsonPath := fmt.Sprintf("%s/%s/package.json", appsDir, dirName)
 	packageJson := LoadPackageJson(packageJsonPath)
 
 	name := GetProjectName(packageJson, dirName)
 	port := GetProjectPort(packageJson)
-	host := fmt.Sprintf("%s.z", name)
+	projectHosts := GetProjectHosts(packageJson, name)
+	// host := fmt.Sprintf("%s.z", name)
 
 	proxiedHost := fmt.Sprintf("http://localhost:%s", port)
 	reverseProxy, err := NewProxy(proxiedHost)
 	if err != nil {
 		panic(err)
 	}
-	handler.proxies[host] = reverseProxy
 
-	fmt.Println(fmt.Sprintf("-> Proxying http://%s to %s", host, proxiedHost))
-	return host
+	for _, host := range projectHosts {
+		handler.proxies[host] = reverseProxy
+		fmt.Println(fmt.Sprintf("-> Proxying http://%s to %s", host, proxiedHost))
+	}
+
+	return projectHosts
 }
 
 func AddHosts(dir string) *proxy {
@@ -88,10 +98,12 @@ func AddHosts(dir string) *proxy {
 
 	for _, f := range files {
 		if f.IsDir() {
-			host := handler.AddProjectProxy(appsDir, f.Name())
+			projectHosts := handler.AddProjectProxy(appsDir, f.Name())
 
-			// Add the custom domain to /etc/hosts
-			hosts.AddHost("127.0.0.1", host)
+			for _, host := range projectHosts {
+				// Add the custom domain to /etc/hosts
+				hosts.AddHost("127.0.0.1", host)
+			}
 		}
 	}
 

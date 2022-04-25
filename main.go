@@ -25,5 +25,7 @@ func main() {
 
 	OpenHosts(handler)
 
+	defer RemoveHosts(handler)
+
 	log.Fatal(http.ListenAndServe(*addr, handler))
 }

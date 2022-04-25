@@ -50,7 +50,7 @@ func (p *proxy) proxy(wr http.ResponseWriter, req *http.Request) {
 		// wr.WriteHeader(resp.StatusCode)
 		// io.Copy(wr, resp.Body)
 	} else {
-		fmt.Println("Invalid host")
+		fmt.Println("Invalid host", req.Host)
 		wr.Write([]byte("Invalid host"))
 		return
 	}
