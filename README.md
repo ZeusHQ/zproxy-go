@@ -2,7 +2,16 @@
 
 zproxy is a zero-configuration local development proxy for Turborepos that automagically proxies all http and websocket requests from local domains to their respective localhost:port url.
 
-For example, 
+For example, running zproxy at the root of the (Kitchen Sink example)[https://github.com/vercel/turborepo/tree/main/examples/kitchen-sink]:
+
+```
+kitchen-sink % sudo zproxy
+ZProxy Started dev.z:80
+-> Proxying http://admin.kitchen-sink.z to http://localhost:3001
+-> Proxying http://api.kitchen-sink.z to http://localhost:5001
+-> Proxying http://blog.kitchen-sink.z to http://localhost:3000
+-> Proxying http://storefront.kitchen-sink.z to http://localhost:3002
+```
 
 ## Installation
 ```
