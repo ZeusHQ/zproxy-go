@@ -5,6 +5,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http/httputil"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
@@ -12,6 +13,18 @@ import (
 
 	"github.com/txn2/txeh"
 )
+
+func GetMonorepoProjectName(packageJson PackageJson, dirName string) string {
+	if packageJson.ZProxy.Name != nil {
+		return *packageJson.ZProxy.Name
+	}
+
+	if dirName == "web" {
+		return "www"
+	}
+
+	return dirName
+}
 
 func GetProjectName(packageJson PackageJson, dirName string) string {
 	if packageJson.ZProxy.Name != nil {
@@ -21,6 +34,7 @@ func GetProjectName(packageJson PackageJson, dirName string) string {
 	if dirName == "web" {
 		return "www"
 	}
+
 	return dirName
 }
 
@@ -43,7 +57,7 @@ func GetProjectPort(packageJson PackageJson) string {
 	return port
 }
 
-func GetProjectHosts(packageJson PackageJson, name string, monorepoName string) []string {
+func GetMonorepoProjectHosts(packageJson PackageJson, name string, monorepoName string) []string {
 	var hosts []string
 
 	hosts = append(hosts, fmt.Sprintf("%s.%s.z", name, monorepoName))
@@ -57,14 +71,27 @@ func GetProjectHosts(packageJson PackageJson, name string, monorepoName string) 
 	return hosts
 }
 
-func (handler *proxy) AddProjectProxy(monorepoName string, appsDir string, dirName string) []string {
+func GetProjectHosts(packageJson PackageJson, monorepoName string) []string {
+	var hosts []string
+
+	hosts = append(hosts, fmt.Sprintf("%s.z", monorepoName))
+
+	if packageJson.ZProxy.Subdomains != nil {
+		for _, subdomain := range *packageJson.ZProxy.Subdomains {
+			hosts = append(hosts, fmt.Sprintf("%s.%s.z", subdomain, monorepoName))
+		}
+	}
+
+	return hosts
+}
+
+func (handler *proxy) AddMonorepoProjectProxy(monorepoName string, appsDir string, dirName string) []string {
 	packageJsonPath := fmt.Sprintf("%s/%s/package.json", appsDir, dirName)
 	packageJson := LoadPackageJson(packageJsonPath)
 
-	name := GetProjectName(packageJson, dirName)
+	name := GetMonorepoProjectName(packageJson, dirName)
 	port := GetProjectPort(packageJson)
-	projectHosts := GetProjectHosts(packageJson, name, monorepoName)
-	// host := fmt.Sprintf("%s.z", name)
+	projectHosts := GetMonorepoProjectHosts(packageJson, name, monorepoName)
 
 	proxiedHost := fmt.Sprintf("http://localhost:%s", port)
 	reverseProxy, err := NewProxy(proxiedHost)
@@ -80,7 +107,37 @@ func (handler *proxy) AddProjectProxy(monorepoName string, appsDir string, dirNa
 	return projectHosts
 }
 
-func AddHosts(dir string) *proxy {
+func (handler *proxy) AddProjectProxy(monorepoName string, appsDir string) []string {
+	packageJsonPath := fmt.Sprintf("%s/package.json", appsDir)
+	packageJson := LoadPackageJson(packageJsonPath)
+
+	name := GetProjectName(packageJson, monorepoName)
+	port := GetProjectPort(packageJson)
+	projectHosts := GetProjectHosts(packageJson, name)
+
+	proxiedHost := fmt.Sprintf("http://localhost:%s", port)
+	reverseProxy, err := NewProxy(proxiedHost)
+	if err != nil {
+		panic(err)
+	}
+
+	for _, host := range projectHosts {
+		handler.proxies[host] = reverseProxy
+		fmt.Println(fmt.Sprintf("-> Proxying http://%s to %s", host, proxiedHost))
+	}
+
+	return projectHosts
+}
+
+func CreateHandler() *proxy {
+	handler := &proxy{
+		proxies: map[string]*httputil.ReverseProxy{},
+	}
+
+	return handler
+}
+
+func (handler *proxy) AddMonorepoHosts(dir string) {
 	hosts, err := txeh.NewHostsDefault()
 	if err != nil {
 		panic(err)
@@ -93,19 +150,31 @@ func AddHosts(dir string) *proxy {
 
 	appsDir := fmt.Sprintf("%s/apps", dir)
 
+	// Does the appsDir exist?
+	if _, err := os.Stat(appsDir); os.IsNotExist(err) {
+		// If not, is there a package.json in the current directory?
+		packageJsonPath := fmt.Sprintf("%s/package.json", dir)
+		if _, err := os.Stat(packageJsonPath); !os.IsNotExist(err) {
+			projectHosts := handler.AddProjectProxy(monorepoName, dir)
+
+			for _, host := range projectHosts {
+				// Add the custom domain to /etc/hosts
+				hosts.AddHost("127.0.0.1", host)
+			}
+		}
+		hosts.Save()
+		return
+	}
+
 	files, err := ioutil.ReadDir(appsDir)
 
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	handler := &proxy{
-		proxies: map[string]*httputil.ReverseProxy{},
-	}
-
 	for _, f := range files {
 		if f.IsDir() {
-			projectHosts := handler.AddProjectProxy(monorepoName, appsDir, f.Name())
+			projectHosts := handler.AddMonorepoProjectProxy(monorepoName, appsDir, f.Name())
 
 			for _, host := range projectHosts {
 				// Add the custom domain to /etc/hosts
@@ -116,8 +185,6 @@ func AddHosts(dir string) *proxy {
 
 	// Save /etc/hosts
 	hosts.Save()
-
-	return handler
 }
 
 func RemoveHosts(handler *proxy) {
